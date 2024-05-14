@@ -14,10 +14,10 @@ using KRR. Below are the instructions to get started with the code.
    *  Unzip the files and ensure that you have the correct directory structure on your computer
 2. Directory Structure:
     * The repository contains the following directories:
-       - System: Contains the dynamical systems to generate data
-       - scripts: Contains the Jupyter notebook to run the code (to work with KRR) and display the results.
-       - results: Holds the results of the code execution, including figures and other important results.
-       - Data: Contains the generated data.
+       - **System**: Contains the dynamical systems to generate data
+       - **scripts**: Contains the Jupyter notebook to run the code (to work with KRR) and display the results.
+       - **results**: Holds the results of the code execution, including figures and other important results.
+       - **Data**: Contains the generated data.
 
 ### Data Generation
 
