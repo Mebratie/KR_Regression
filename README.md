@@ -27,14 +27,13 @@ using KRR. Below are the instructions to get started with the code.
 
 ### Running the Code
 
-1. Dependencies:
+1. **Dependencies**:
    * The code requires the following common packages:
        - scipy, numpy, sklearn, matplotlib, os, sympy, itertools, pandas
-2. Quick Demonstration:
+2. **Quick Demonstration**:
 Learn a conservation law for the 4D Lotka-Volterra system using our method by following these steps
 
-   *  Run the Jupyter notebook ```4D_Lotka_T5_N20.ipynb``` located inside the system folder.
-   *   In the notebook, ’T5’ represents 5 trajectories, and ’N20’ represents 20 data points per trajectory, resulting in a total of 100 data points.
-   *  The generated data will be automatically saved to the data folder.
+   *  Run the Jupyter notebook ```4D_Lotka_T5_N20.ipynb``` located inside the system folder, where ```T5``` represents 5 trajectories, and ```N20``` represents 20 data points per trajectory, resulting in a total of 100 data points.
+   *  The generated data will be automatically saved to the data folder, more specifically to the folder 4D_Lotka_Volterra.
    *  Next, run the Jupyter notebook ```4D_Lotka_T5_N20.ipynb``` located inside the scripts folder.
    *  The illustrative figures, conserved quantity, and other important results will be saved to the results folder.
