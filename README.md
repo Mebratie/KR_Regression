@@ -16,7 +16,7 @@ using KRR. Below are the instructions to get started with the code.
     * The repository contains the following directories:
        - **System**: Contains the dynamical systems to generate data
        - **scripts**: Contains the Jupyter notebook to run the code (to work with KRR) and display the results.
-       - **results**: Holds the results of the code execution, including figures and other important results.
+       - **results**: Contains the results of the code execution, including figures and other important results.
        - **Data**: Contains the generated data.
 
 ### Data Generation
