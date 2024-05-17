@@ -1,17 +1,15 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import sympy as sp
 import itertools
 from sklearn.model_selection import (
     GridSearchCV,
     KFold,
 )
-from sklearn.kernel_ridge import KernelRidge
 from sympy import lambdify
 from sklearn.metrics import mean_squared_error
+from sklearn.base import BaseEstimator
 import math
-from scipy.stats import pearsonr
 import sys
 
 if __name__ == "__main__":
@@ -235,20 +233,7 @@ if __name__ == "__main__":
     def polynomial_kernel(X, Y, degree=1):
         return (1 + np.dot(X, Y.T)) ** degree
 
-    print("Fit overall model")
-    param_grid = {
-        "alpha": [0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
-    }
-    cv = KFold(n_splits=5, shuffle=True, random_state=42)
-    kr_model = KernelRidge(kernel=polynomial_kernel)
-    grid_search = GridSearchCV(
-        kr_model, param_grid, cv=cv, scoring="neg_mean_squared_error"
-    )
-    grid_search.fit(X_train, y_train)
-    print("Best parameters:", grid_search.best_params_)
-    print("Best RMSE:", -grid_search.best_score_)
-
-    class KernelMethodBase(object):
+    class KernelMethodBase(BaseEstimator):
         """
         Base class for kernel methods models
         Methods
@@ -323,7 +308,20 @@ if __name__ == "__main__":
         def predict_K(self, K_x):
             return self.decision_function_K(K_x)
 
+    print("Fit overall model")
     kernel = "polynomial"
+    param_grid = {
+        "alpha": [0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
+    }
+    cv = KFold(n_splits=5, shuffle=True, random_state=42)
+    kr_model = KernelRidgeRegression(kernel=kernel)
+    grid_search = GridSearchCV(
+        kr_model, param_grid, cv=cv, scoring="neg_mean_squared_error"
+    )
+    grid_search.fit(X_train, y_train)
+    print("Best parameters:", grid_search.best_params_)
+    print("Best RMSE:", -grid_search.best_score_)
+
     kr_model = KernelRidgeRegression(
         kernel=kernel,
         alpha=grid_search.best_params_["alpha"],
