@@ -2,16 +2,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import sympy as sp
-import csv
 import itertools
-import os
 from sklearn.model_selection import (
     GridSearchCV,
-    train_test_split,
     KFold,
 )
 from sklearn.kernel_ridge import KernelRidge
-from sympy import symbols, simplify, lambdify, Function, diff
+from sympy import lambdify
 from sklearn.metrics import mean_squared_error
 import math
 from scipy.stats import pearsonr
@@ -28,10 +25,14 @@ if __name__ == "__main__":
     training_frac = 0.8
 
     # load trajectories
+    print("Loading trajectories")
     trajs = []
     for datafile in datafiles:
         traj = np.loadtxt(datafile, delimiter=",", skiprows=1)
         trajs.append(traj)
+    num_variables = traj.shape[1]
+    column_names_x = [f"x{_}" for _ in range(1, num_variables + 1)]
+    column_names_y = [f"y{_}" for _ in range(len(trajs))]
 
     # split data into training and holdout sets
     datasets = [list() for _ in range(nsplits)]
@@ -53,7 +54,6 @@ if __name__ == "__main__":
     datasets = [np.vstack(ds) for ds in datasets]
 
     def compute_kernel_matrix(X, c, d):
-        n = X.shape[0]
         K = (c + np.dot(X, X.T)) ** d
         return K
 
@@ -63,15 +63,8 @@ if __name__ == "__main__":
         I = np.eye(K.shape[0])
         K_with_I = K + lambda_value * I
         K_with_I_inv = np.linalg.inv(K_with_I)
-        num_x_variables = data.shape[
-            1
-        ]  # Indicates the number of variable, which means we have 4 variables from x1 to x4
-        num_y_variables = m  # number of trajectory
-        x_symbols = [sp.symbols(f"x{i}") for i in range(1, num_x_variables + 1)]
-        y_symbols = [sp.symbols(f"y{i}") for i in range(num_y_variables)]
         y0 = sp.symbols("y0")
         y_pattern = [sp.symbols(f"y{i}") for i in range(m)]
-        y_repeated = np.repeat(y_pattern, rep, axis=0)
         y = sp.Matrix([sp.symbols(f"y{i}") for i in range(m)])
         M_matrix = sp.Matrix(K_with_I_inv)
         n = K.shape[0]
@@ -103,6 +96,7 @@ if __name__ == "__main__":
     lvals = [10 ** (-i) for i in range(8)]
     c, d = 1, 1  # Adjust the values of variable "d" according to the required degree.
 
+    print("Determine regularisation")
     solutions = [
         [solve_for_lambda(dataset, c, d, l, m) for l in lvals]
         for dataset in datasets[:-1]
@@ -165,13 +159,11 @@ if __name__ == "__main__":
         return K_with_I_inv, alpha_sym
 
     def process_dataset(dataset, lambda_values, y_values_dicts):
-        data = pd.DataFrame(
-            dataset, columns=[f"x{_}" for _ in range(1, dataset.shape[1] + 1)]
-        )
-        variables = ["c", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"]
+        data = pd.DataFrame(dataset, columns=column_names_x)
+        variables = ["c"] + column_names_x
         n = 1  # degree of the polynomial kernel
         data["c"] = 1
-        variables1 = ["1", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"]
+        variables1 = ["1"] + column_names_x
         n1 = 1  # degree of the polynomial kernel
         all_entries = []
         f_alpha_expression_list = []
@@ -207,7 +199,7 @@ if __name__ == "__main__":
     ]
     y_values_dicts_list = solutions_combined
 
-    ndim = datasets[0].shape[1]
+    ndim = num_variables
     nlvals = len(lvals)
     f_vector = np.zeros((nsplits - 1, nlvals, len(datasets[-1])))
     variable_names = [f"x{i}" for i in range(1, ndim + 1)]
@@ -229,39 +221,7 @@ if __name__ == "__main__":
                 mean_squared_error(np.repeat(hs[lidx], rep), f_vector[split, lidx, :])
             )
 
-    h_value = hs[np.argmin(np.min(RMSEs, axis=0))]
-
-    def multilinear_coefficient(n, *ks):
-        numerator = math.factorial(n)
-        denominator = 1
-        for k in ks:
-            denominator *= math.factorial(k)
-        return numerator // denominator
-
-    def multilinear_expansion(variables, n, row):
-        expansions = []
-        for ks in itertools.product(range(n + 1), repeat=len(variables)):
-            if sum(ks) == n:
-                coefficient = multilinear_coefficient(n, *ks)
-                values = [
-                    row[var] ** k if var != "1" else 1 for var, k in zip(variables, ks)
-                ]
-                term_value = coefficient * math.prod(values)
-                expansions.append(term_value)
-        return expansions[::-1]
-
-    def multilinear_expansion1(variables1, n1):
-        expansions1 = []
-        for ks in itertools.product(range(n1 + 1), repeat=len(variables1)):
-            if sum(ks) == n1:
-                terms1 = [
-                    f"{var}**{k}" if k != 0 else f"{var}"
-                    for var, k in zip(variables1, ks)
-                    if k != 0
-                ]
-                term1 = " * ".join(terms1)
-                expansions1.append(term1)
-        return expansions1[::-1]
+    h_value = hs[np.argmin(np.average(RMSEs, axis=0))]
 
     def generate_inner_products(coefficients, terms):
         inner_products = [f"{c}*{t}" for c, t in zip(coefficients, terms)]
@@ -275,6 +235,7 @@ if __name__ == "__main__":
     def polynomial_kernel(X, Y, degree=1):
         return (1 + np.dot(X, Y.T)) ** degree
 
+    print("Fit overall model")
     param_grid = {
         "alpha": [0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
     }
@@ -369,14 +330,13 @@ if __name__ == "__main__":
     )
     kr_model.fit(X_train, y_train)
 
-    x1, x2, x3, x4, x5, x6, x7, x8 = sp.symbols("x1 x2 x3 x4 x5 x6 x7 x8")
+    column_symbols = sp.symbols(" ".join(column_names_x))
     eta = kr_model.eta
-    num_variables = 8
-    data = pd.DataFrame(X_train, columns=[f"x{i}" for i in range(1, num_variables + 1)])
-    variables = ["c"] + [f"x{i}" for i in range(1, num_variables + 1)]
+    data = pd.DataFrame(X_train, columns=column_names_x)
+    variables = ["c"] + column_names_x
     n = 1
     data["c"] = 1
-    variables1 = ["1"] + [f"x{i}" for i in range(1, num_variables + 1)]
+    variables1 = ["1"] + column_names_x
     n1 = 1
     all_entries = []
     for index, row in data.iterrows():
@@ -434,25 +394,11 @@ if __name__ == "__main__":
 
     traj_len = df3.groupby("trajectory").size()
     rep = int(round(traj_len.mean()))
-    expression = sp.lambdify((x1, x2, x3, x4, x5, x6, x7, x8), total_sum, "numpy")
-    df3["lamhold"] = expression(
-        df3["x1"],
-        df3["x2"],
-        df3["x3"],
-        df3["x4"],
-        df3["x5"],
-        df3["x6"],
-        df3["x7"],
-        df3["x8"],
-    )
-    da = {
-        "y0": h_value[0],
-        "y1": h_value[1],
-        "y2": h_value[2],
-        "y3": h_value[3],
-        "y4": h_value[4],
-    }
-    df3["Coluh(lamhold)"] = [da[f"y{i}"] for i in range(5) for _ in range(rep)]
+    expression = sp.lambdify(column_symbols, total_sum, "numpy")
+    df3["lamhold"] = expression(*[df3[_] for _ in column_names_x])
+
+    da = {column_names_y[i]: h_value[i] for i in range(len(trajs))}
+    df3["Coluh(lamhold)"] = [da[f"y{i}"] for i in range(len(trajs)) for _ in range(rep)]
     columns_to_compare = [("lamhold", "Coluh(lamhold)")]
     for col1, col2 in columns_to_compare:
         rmse = np.sqrt(mean_squared_error(df3[col1], df3[col2]))
@@ -460,7 +406,7 @@ if __name__ == "__main__":
         print("")
     with open("total_sum.txt", "r") as file:
         total_sum = sp.sympify(file.read())
-    f = sp.lambdify((x1, x2, x3, x4, x5, x6, x7, x8), total_sum, "numpy")
+    f = sp.lambdify(column_symbols, total_sum, "numpy")
 
     nfulls = sum([len(_) for _ in full])
     full_data = np.zeros((nfulls, num_variables + 1))
@@ -470,7 +416,7 @@ if __name__ == "__main__":
     ).astype(float)
     dat = pd.DataFrame(
         full_data,
-        columns=[f"x{i}" for i in range(1, num_variables + 1)] + ["trajectory"],
+        columns=column_names_x + ["trajectory"],
     )
 
     trajectories = dat["trajectory"].unique()
@@ -478,8 +424,9 @@ if __name__ == "__main__":
     total_data_points = 0
     for trajectory in trajectories:
         trajectory_data = dat[dat["trajectory"] == trajectory].copy()
-        cols = ["x" + str(i) for i in range(1, 9)]  # number of variable
-        trajectory_data["functional_value"] = f(*trajectory_data[cols].values.T)
+        trajectory_data["functional_value"] = f(
+            *trajectory_data[column_names_x].values.T
+        )
         mean_value = trajectory_data["functional_value"].mean()
         trajectory_data["functional_value_minus_mean"] = (
             trajectory_data["functional_value"] - mean_value
@@ -500,52 +447,7 @@ if __name__ == "__main__":
     standard_deviation = math.sqrt(average_squared_normalized_functional_value)
     print(" Relative deviation:", standard_deviation)
     print("")
-    df = pd.DataFrame(
-        datasets[-1], columns=[f"x{i}" for i in range(1, num_variables + 1)]
-    )
-    df["x1"] = pd.to_numeric(df["x1"], errors="coerce")
-    df["x2"] = pd.to_numeric(df["x2"], errors="coerce")
-    df["x3"] = pd.to_numeric(df["x3"], errors="coerce")
-    df["x4"] = pd.to_numeric(df["x4"], errors="coerce")
-    df["x5"] = pd.to_numeric(df["x5"], errors="coerce")
-    df["x6"] = pd.to_numeric(df["x6"], errors="coerce")
-    df["x7"] = pd.to_numeric(df["x7"], errors="coerce")
-    df["x8"] = pd.to_numeric(df["x8"], errors="coerce")
-    f1_func = lambdify((x1, x2, x3, x4, x5, x6, x7, x8), filtered, "numpy")
-
-    def f2(x1, x2, x3, x4, x5, x6, x7, x8):
-        return x1 + x2 + x3 + x4 - x5 - x6 - x7 - x8  # Exact Conservation law
-
-    dat["f1"] = f1_func(
-        dat["x1"],
-        dat["x2"],
-        dat["x3"],
-        dat["x4"],
-        dat["x5"],
-        dat["x6"],
-        dat["x7"],
-        dat["x8"],
-    )
-    dat["f2"] = dat.apply(
-        lambda row: f2(
-            row["x1"],
-            row["x2"],
-            row["x3"],
-            row["x4"],
-            row["x5"],
-            row["x6"],
-            row["x7"],
-            row["x8"],
-        ),
-        axis=1,
-    )
-    corr, _ = pearsonr(dat["f1"], dat["f2"])
-    print(f"Correlation coefficient: {corr}")
-    plt.scatter(dat["f1"], dat["f2"], s=100, c=dat["trajectory"], cmap="viridis")
-    plt.xlabel("Learned", fontsize=18)
-    plt.ylabel("Exact", fontsize=18)
-    plt.xticks([])
-    plt.yticks([])
-    save_path = "Coerrelation_plot.pdf"
-    plt.savefig(save_path)
-    plt.close()
+    df = pd.DataFrame(datasets[-1], columns=column_names_x)
+    for col in column_names_x:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    f1_func = lambdify(column_symbols, filtered, "numpy")
