@@ -34,7 +34,7 @@ This repository contains code for learning the conservation laws of dynamical sy
 2. **Quick Demonstration**:
    
 Learn a conservation law for the dynamical system using our method by following these steps
-#### To start the project, you can use the command python kcl.py.
+#### To start the project, you can use the command ``python kcl.py``.
 
                   OR
 
