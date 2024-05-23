@@ -12,11 +12,21 @@ from sklearn.base import BaseEstimator
 import math
 import sys
 
+
+def combine_splits(indices, datasets):
+    combined_data = np.vstack([datasets[i] for i in indices])
+    return combined_data
+
+
 if __name__ == "__main__":
     datafiles = sys.argv[1:]
     if len(datafiles) == 0:
         print("No trajectory data provided.")
         sys.exit(1)
+
+    # configure here
+    lvals = [10 ** (-i) for i in range(8)]
+    c, d = 1, 1  # Adjust the values of variable "d" according to the required degree.
 
     m = len(datafiles)
     nsplits = 5
@@ -45,12 +55,18 @@ if __name__ == "__main__":
         for split in range(nsplits):
             part = traj[split * npts : (split + 1) * npts, :]
             datasets[split].append(part)
-
         ntrain = int(traj.shape[0] * training_frac)
         training.append(traj[:ntrain, :])
         holdout.append(traj[ntrain:, :])
     datasets = [np.vstack(ds) for ds in datasets]
+    #############################################
+    combined_datasets = []
+    for i in range(nsplits):
+        indices = [j for j in range(nsplits) if j != i]
+        combined_data = combine_splits(indices, datasets)
+        combined_datasets.append(combined_data)
 
+    #################################################
     def compute_kernel_matrix(X, c, d):
         K = (c + np.dot(X, X.T)) ** d
         return K
@@ -88,21 +104,16 @@ if __name__ == "__main__":
         solution_with_y0 = {**{"y0": 1}, **solution}
         return {"W": W1, "solution": solution_with_y0}
 
-    def add_matrices(mat1, mat2, mat3, mat4):
-        return mat1 + mat2 + mat3 + mat4
-
-    lvals = [10 ** (-i) for i in range(8)]
-    c, d = 1, 1  # Adjust the values of variable "d" according to the required degree.
+    def add_matrices(mat1, mat2, mat3, mat4, mat5):
+        return mat1 + mat2 + mat3 + mat4 + mat5
 
     print("Determine regularisation")
     solutions = [
-        [solve_for_lambda(dataset, c, d, l, m) for l in lvals]
-        for dataset in datasets[:-1]
+        [solve_for_lambda(dataset, c, d, l, m) for l in lvals] for dataset in datasets
     ]
-
     solutions_combined = []
-    for i, (w1, w2, w3, w4) in enumerate(zip(*solutions)):
-        added_matrix = add_matrices(w1["W"], w2["W"], w3["W"], w4["W"])
+    for i, (w1, w2, w3, w4, w5) in enumerate(zip(*solutions)):
+        added_matrix = add_matrices(w1["W"], w2["W"], w3["W"], w4["W"], w5["W"])
         all_symbols = w1["W"].free_symbols
         set_solution = {"y0": 1}
         equations = [sp.Eq(added_matrix[i], 0) for i in range(added_matrix.shape[0])]
@@ -156,8 +167,8 @@ if __name__ == "__main__":
         alpha_sym = K_with_I_inv @ y_repeated
         return K_with_I_inv, alpha_sym
 
-    def process_dataset(dataset, lambda_values, y_values_dicts):
-        data = pd.DataFrame(dataset, columns=column_names_x)
+    def process_dataset(combined_dataset, lambda_values, y_values_dicts):
+        data = pd.DataFrame(combined_dataset, columns=column_names_x)
         variables = ["c"] + column_names_x
         n = 1  # degree of the polynomial kernel
         data["c"] = 1
@@ -165,7 +176,7 @@ if __name__ == "__main__":
         n1 = 1  # degree of the polynomial kernel
         all_entries = []
         f_alpha_expression_list = []
-        data_np = dataset
+        data_np = combined_dataset
         for index, row in data.iterrows():
             result = multilinear_expansion(variables, n, row)
             result1 = multilinear_expansion1(variables1, n1)
@@ -178,7 +189,6 @@ if __name__ == "__main__":
                 data_np, c, d, lambda_val, list(y_values_dict.values())
             )
             total_sum = 0
-            #         print(f"File: {file_path}, Lambda = 10^(-{lambda_values.index(lambda_val)}), y_values_dict: {y_values_dict}:")
             for entry_index, (entry, alpha) in enumerate(
                 zip(all_entries, alpha_sym), 1
             ):
@@ -186,39 +196,42 @@ if __name__ == "__main__":
                 for term in entry:
                     result = alpha * sp.sympify(term)
                     entry_sum += result
-                    # print(result)
                 total_sum += entry_sum
             f_alpha_expression_list.append(total_sum)
         return f_alpha_expression_list
 
-    rep = len(datasets[0]) // m
+    rep = len(combined_datasets[0]) // m
     f_alpha_expressions = [
-        process_dataset(dataset, lvals, solutions_combined) for dataset in datasets[:-1]
+        process_dataset(combined_dataset, lvals, solutions_combined)
+        for combined_dataset in combined_datasets
     ]
     y_values_dicts_list = solutions_combined
 
     ndim = num_variables
     nlvals = len(lvals)
-    f_vector = np.zeros((nsplits - 1, nlvals, len(datasets[-1])))
+    nrows = len(combined_datasets[-1])
+    f_vector = np.zeros((nsplits, nlvals, nrows))
     variable_names = [f"x{i}" for i in range(1, ndim + 1)]
 
-    for rowid in range(len(datasets[-1])):
-        mapping = {var: datasets[-1][rowid, i] for i, var in enumerate(variable_names)}
-        for split in range(nsplits - 1):
+    for rowid in range(nrows):
+        for split in range(nsplits):
+            mapping = {
+                var: combined_datasets[split][rowid, i]
+                for i, var in enumerate(variable_names)
+            }
             for lidx in range(nlvals):
                 f_vector[split, lidx, rowid] = f_alpha_expressions[split][lidx].evalf(
                     subs=mapping
                 )
 
     hs = [list(_.values()) for _ in y_values_dicts_list]
-    RMSEs = np.zeros((nsplits - 1, len(lvals)))
+    RMSEs = np.zeros((nsplits, len(lvals)))
 
-    for split in range(nsplits - 1):
+    for split in range(nsplits):
         for lidx in range(nlvals):
             RMSEs[split, lidx] = np.sqrt(
                 mean_squared_error(np.repeat(hs[lidx], rep), f_vector[split, lidx, :])
             )
-
     h_value = hs[np.argmin(np.average(RMSEs, axis=0))]
 
     def generate_inner_products(coefficients, terms):
