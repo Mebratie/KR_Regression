@@ -33,14 +33,12 @@ This repository contains code for learning the conservation laws of dynamical sy
        - scipy, numpy, sklearn, matplotlib, os, sympy, itertools, pandas
 2. **Quick Demonstration**:
    
-Learn a conservation law for the dynamical system using our method by following these steps
-#### To start the project, you can use the command ``python kcl.py``.
+We really recommend starting with our example Lorenz system to understand how to discover single and multiple conservation laws, as well as the sparsification procedure.
 
-                  OR
-
-     For example, for the 4D Lotka-Volterra dynamical system:
-
-   *  To generate new data, start by running the Jupyter notebook ``4D_Lotka_T5_N20.ipynb`` located in the system folder. In this filename, ``T5`` indicates there are ``5`` trajectories and ``N20`` signifies ``20`` data points per trajectory, resulting in a total of ``100`` data points.
-   *  The generated data will be automatically saved to the data folder, specifically in the 4D_Lotka_Volterra subfolder.
-   *  Next, run the Jupyter notebook ```4D_Lotka_T5_N20.ipynb``` or ``4D_Lotka_T5_N20.py`` on the command prompt located inside the scripts folder.
+   * For example, run ```Lorenz_System_T5_40.py``` in the terminal located in the scripts folder. In this script, the user can specify the polynomial kernel degree and the constant c. For simplicity, you can set, but any value for c can be used.
    *  The illustrative figures, conserved quantity, and other important results will be saved to the results folder.
+
+   To explore more comprehensive examples, utilize the ```kcl.py``` script. This general-purpose code is designed to be executed 
+   for various systems or example scenarios. For each specific system or example, run the ```kcl.py```
+
+   *  To check the previous version of the algorithm, one can go to version v1.3, download the code, and experiment with it.
