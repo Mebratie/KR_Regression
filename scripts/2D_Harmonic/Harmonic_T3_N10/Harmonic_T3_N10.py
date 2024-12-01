@@ -19,13 +19,7 @@ from sympy import symbols, simplify, lambdify, Function, diff
 from sklearn.metrics import mean_squared_error
 import math
 from scipy.stats import pearsonr
-# %matplotlib inline
-dm = pd.read_csv("../../../System/2D_Harmonic/Harmonic_T3_N10/50.csv")
-m = dm['trajectory'].nunique()
-x_columns = [col for col in dm.columns if col.startswith('x')]
-num_x_variables = len(x_columns)
-num_y_variables = m
-d = int(input("Enter degree for polynomial kernel: "))
+# get_ipython().run_line_magic('matplotlib', 'inline')
 def compute_kernel_matrix(X, c, d):
     n = X.shape[0]
     K = (c + np.dot(X, X.T)) ** d
@@ -77,6 +71,8 @@ def solve_for_lambda_A2(data_A2, c, d, lambda_value, m):
     I = np.eye(K.shape[0])
     K_with_I = K + lambda_value * I
     K_with_I_inv = np.linalg.inv(K_with_I)
+    num_x_variables = 3
+    num_y_variables = m
     x_symbols = [sp.symbols(f'x{i}') for i in range(1, num_x_variables + 1)]
     y_symbols = [sp.symbols(f'y{i}') for i in range(num_y_variables)]
     y0 = sp.symbols('y0')
@@ -117,6 +113,8 @@ def solve_for_lambda_A3(data_A3, c, d, lambda_value, m):
     I = np.eye(K.shape[0])
     K_with_I = K + lambda_value * I
     K_with_I_inv = np.linalg.inv(K_with_I)
+    num_x_variables = 3
+    num_y_variables = m
     x_symbols = [sp.symbols(f'x{i}') for i in range(1, num_x_variables + 1)]
     y_symbols = [sp.symbols(f'y{i}') for i in range(num_y_variables)]
     y0 = sp.symbols('y0')
@@ -157,6 +155,8 @@ def solve_for_lambda_A4(data_A4, c, d, lambda_value, m):
     I = np.eye(K.shape[0])
     K_with_I = K + lambda_value * I
     K_with_I_inv = np.linalg.inv(K_with_I)
+    num_x_variables = 3
+    num_y_variables = m
     x_symbols = [sp.symbols(f'x{i}') for i in range(1, num_x_variables + 1)]
     y_symbols = [sp.symbols(f'y{i}') for i in range(num_y_variables)]
     y0 = sp.symbols('y0')
@@ -195,12 +195,13 @@ data = np.loadtxt('../../../Data/2D_Harmonic/Harmonic_T3_N10/B501.csv', delimite
 data_A2 = np.loadtxt('../../../Data/2D_Harmonic/Harmonic_T3_N10/B502.csv', delimiter=',', skiprows=1, usecols=(0, 1, 2))
 data_A3 = np.loadtxt('../../../Data/2D_Harmonic/Harmonic_T3_N10/B503.csv', delimiter=',', skiprows=1, usecols=(0, 1, 2))
 data_A4 = np.loadtxt('../../../Data/2D_Harmonic/Harmonic_T3_N10/B504.csv', delimiter=',', skiprows=1, usecols=(0, 1, 2))
+m = 3 # number of trajectory or y labels
 lamda = 8 # order of magnitude for lambda value
 lambda_values_A1 = [10**(-i) for i in range(lamda)]
 lambda_values_A2 = [10**(-i) for i in range(lamda)]
 lambda_values_A3 = [10**(-i) for i in range(lamda)]
 lambda_values_A4 = [10**(-i) for i in range(lamda)]
-c = 1 # Adjust the values of variable "d" according to the required degree.
+c, d = 1, 3 # Adjust the values of variable "d" according to the required degree.
 c_A1 = c_A2 = c_A3 = c_A4 = c
 d_A1 = d_A2 = d_A3 = d_A4 = d
 solutions_A1 = [solve_for_lambda(data, c_A1, d_A1, lambda_val_A1, m) for lambda_val_A1 in lambda_values_A1]
@@ -342,16 +343,16 @@ sub_index = min_index % 8
 h_values = [h1, h2, h3, h4, h5, h6, h7, h8]
 lambda_values = [10**(-i) for i in range(lamda)]
 h_value = h_values[sub_index]
-df2 = pd.read_csv('../../../Data/2D_Harmonic/Harmonic_T3_N10/trainingp_data50.csv')
-df2['trajectory'] = df2['trajectory'].replace({i: h_value[i-1] for i in range(1, m+1)})
-X_train = df2.iloc[:, :-1]
-y_train = df2.iloc[:, -1]
+df2 = pd.read_csv('../../../System/2D_Harmonic/Harmonic_T3_N10/50.csv')
+df2['trajectory'] = df2['trajectory'].replace({1: h_value[0],2: h_value[1], 3: h_value[2]})
+X = df2.iloc[:, :-1]
+y = df2.iloc[:, -1]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 X_train.to_csv('../../../results/2D_Harmonic/Harmonic_T3_N10/X_train.csv', index=False)
 y_train = y_train.astype(float)
-X_train = X_train.astype(float)
-def polynomial_kernel(X, Y, degree=d):
+def polynomial_kernel(X, Y, degree=3):
     return (1 + np.dot(X, Y.T)) ** degree
-param_grid = {'alpha': [0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1]}
+param_grid = {'alpha': [0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100]}
 cv = KFold(n_splits=5, shuffle=True, random_state=42)
 kr_model = KernelRidge(kernel=polynomial_kernel)
 grid_search = GridSearchCV(kr_model, param_grid, cv=cv, scoring='neg_mean_squared_error')
@@ -360,8 +361,8 @@ print("Best parameters:", grid_search.best_params_)
 print("Best RMSE:", -grid_search.best_score_)
 print("")
 print("")
-# grid_search.best_estimator_
-# y_pred = grid_search.predict(X_test)
+grid_search.best_estimator_
+y_pred = grid_search.predict(X_test)
 class KernelMethodBase(object):
     '''
     Base class for kernel methods models
@@ -382,7 +383,7 @@ class KernelMethodBase(object):
         self.fit_intercept_ = False
     def get_kernel_parameters(self, **kwargs):
         params = {}
-        params['degree'] = kwargs.get('degree', d)
+        params['degree'] = kwargs.get('degree', 3)
         return params
     def fit_K(self, K, y, **kwargs):
         pass
@@ -427,7 +428,7 @@ kr_model = KernelRidgeRegression(
 kr_model.fit(X_train, y_train)
 eta = kr_model.eta
 x1, x2, x3 = sp.symbols('x1 x2 x3') # all variable
-polynomial_kernel = (1 + x1*sp.Symbol('xi1') + x2*sp.Symbol('xi2') + x3*sp.Symbol('xi3'))**d
+polynomial_kernel = (1 + x1*sp.Symbol('xi1') + x2*sp.Symbol('xi2') + x3*sp.Symbol('xi3'))**3
 f_beta = 0
 for i in range(len(X_train)):
     f_beta += eta[i] * polynomial_kernel.subs({'xi1': X_train.iloc[i][0], 'xi2': X_train.iloc[i][1], 'xi3': X_train.iloc[i][2]})
@@ -465,11 +466,11 @@ with open("../../../results/2D_Harmonic/Harmonic_T3_N10/candidate_CL.txt", "r") 
     candidate_CL = sp.sympify(file.read())
 df3 = pd.read_csv('../../../Data/2D_Harmonic/Harmonic_T3_N10/holdoutp_data50.csv')
 traj_len = df3.groupby('trajectory').size()
-rep1 = int(round(traj_len.mean()))
+rep = int(round(traj_len.mean()))
 expression = sp.lambdify((x1, x2, x3), candidate_CL, "numpy")
 df3['lamhold'] = expression(df3['x1'], df3['x2'], df3['x3'])
-da = {'y{}'.format(i): h_value[i] for i in range(len(h_value))}
-df3['Coluh(lamhold)'] = [da[f'y{i}'] for i in range(m) for _ in range(rep1)]
+da = {'y0': h_value[0], 'y1': h_value[1], 'y2': h_value[2]}
+df3['Coluh(lamhold)'] = [da[f'y{i}'] for i in range(3) for _ in range(rep)]
 columns_to_compare = [('lamhold', 'Coluh(lamhold)')]
 for col1, col2 in columns_to_compare:
     rmse = np.sqrt(mean_squared_error(df3[col1], df3[col2]))
@@ -497,7 +498,7 @@ standard_deviation = math.sqrt(average_squared_normalized_functional_value)
 print(" Relative deviation:", standard_deviation)
 print("")
 input_directory = r'../../../System/2D_Harmonic/Harmonic_T3_N10'
-output_directory = r'../../../Data/2D_Harmonic/Harmonic_T3_N10\d'
+output_directory = r'../../../Data/2D_Harmonic/Harmonic_T3_N10/d'
 df14 = pd.read_csv(os.path.join(input_directory, '50.csv')) # 50.csv, saved names of the data
 Br = pd.read_csv('../../../System/2D_Harmonic/Harmonic_T3_N10/50.csv')
 tr = Br.groupby('trajectory').size()
@@ -523,14 +524,14 @@ with open('../../../System/2D_Harmonic/Harmonic_T3_N10/50.csv', 'r') as file:
             expression_value = expression.subs({x1: x1_val, x2: x2_val, x3: x3_val})
             expression_values.append(expression_value)
 compute_function = sp.lambdify((x1, x2, x3), candidate_CL, 'numpy')
-for i in range(1, m+1):
+for i in range(1, 4):
     input_file = os.path.join(output_directory, f'q{i}.csv')
     output_file = os.path.join(output_directory, f'r{i}.csv')
     data = pd.read_csv(input_file)
     data['computed_value'] = compute_function(data['x1'], data['x2'], data['x3'])
     data.to_csv(output_file, index=False)
 subtraction_values = expression_values
-for i in range(1, m+1): # 5 trajectory
+for i in range(1, 4): # 5 trajectory
     r_file = os.path.join(output_directory, f'r{i}.csv')
     n_file = os.path.join(output_directory, f'n{i}.csv')
     subtraction_value = subtraction_values[i - 1]
@@ -539,7 +540,7 @@ for i in range(1, m+1): # 5 trajectory
     data.to_csv(n_file, columns=['adjusted_value'], index=False)
 all_data = pd.DataFrame()
 subtraction_values = expression_values
-for i in range(1, m+1): # 5 trajectory
+for i in range(1, 4): # 5 trajectory
     r_file = os.path.join(output_directory, f'r{i}.csv')
     n_file = os.path.join(output_directory, f'n{i}.csv')
     subtraction_value = subtraction_values[i - 1]
@@ -552,7 +553,7 @@ for column in all_data.columns:
     plt.plot(all_data[column], label=column)
 plt.xlabel('N', fontsize=16)
 plt.ylabel('Relative Variation', fontsize=16)
-save_path = '../../../results/2D_Harmonic/Harmonic_T3_N10/Relative_Variation.png'
+save_path = '../../../results/2D_Harmonic/Harmonic_T3_N10/Relative_Variation.pdf'
 plt.savefig(save_path)
 plt.close()
 

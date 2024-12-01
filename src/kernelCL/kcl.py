@@ -9,6 +9,8 @@ from sklearn.model_selection import (
 from sympy import lambdify
 from sklearn.metrics import mean_squared_error
 from sklearn.base import BaseEstimator
+from cvxopt import matrix, solvers
+from qpsolvers import solve_qp
 import math
 import sys
 d = int(input("Enter degree for polynomial kernel: "))
@@ -63,16 +65,12 @@ if __name__ == "__main__":
     def compute_kernel_matrix(X, c, d):
         K = (c + np.dot(X, X.T)) ** d
         return K
-
     def solve_for_lambda(data, c, d, lambda_value, m):
         rep = len(data) // m
         K = compute_kernel_matrix(data, c, d)
         I = np.eye(K.shape[0])
         K_with_I = K + lambda_value * I
         K_with_I_inv = np.linalg.inv(K_with_I)
-        y0 = sp.symbols("y0")
-        y_pattern = [sp.symbols(f"y{i}") for i in range(m)]
-        y = sp.Matrix([sp.symbols(f"y{i}") for i in range(m)])
         M_matrix = sp.Matrix(K_with_I_inv)
         n = K.shape[0]
         M = sp.zeros(n, m)
@@ -81,24 +79,10 @@ if __name__ == "__main__":
                 start_idx = j * rep
                 end_idx = (j + 1) * rep
                 M[i, j] = sp.Add(*M_matrix[i, start_idx:end_idx])
-        M_transpose = M.transpose()
-        A = M_transpose @ M
-        C = y.T
-        D = C @ A @ y
-        D_expanded = sp.expand(D.subs(y0, 1))
-        W1 = sp.Matrix([sp.diff(D_expanded, var) for var in y])
-        B = W1.subs(y0, 1)
-        system_of_equations = []
-        variables = [sp.symbols(f"y{i}") for i in range(1, m)]
-        for i in range(len(y_pattern) - 1):
-            equation = sp.Eq(B[i + 1], 0)
-            system_of_equations.append(equation)
-        solution = sp.solve(system_of_equations, variables)
-        solution_with_y0 = {**{"y0": 1}, **solution}
-        return {"W": W1, "solution": solution_with_y0}
-
-    def add_matrices(mat1, mat2, mat3, mat4):
-        return mat1 + mat2 + mat3 + mat4
+                M_transpose = M.transpose()
+                A = M_transpose @ M
+                A_np = np.array(A).astype(np.float64)
+                return A_np
 
     lvals = [10 ** (-i) for i in range(8)]
     c = 1
@@ -110,15 +94,24 @@ if __name__ == "__main__":
     ]
 
     solutions_combined = []
-    for i, (w1, w2, w3, w4) in enumerate(zip(*solutions)):
-        added_matrix = add_matrices(w1["W"], w2["W"], w3["W"], w4["W"])
-        all_symbols = w1["W"].free_symbols
-        set_solution = {"y0": 1}
-        equations = [sp.Eq(added_matrix[i], 0) for i in range(added_matrix.shape[0])]
-        solutions_system = sp.solve(equations, all_symbols)
-        for var, sol in solutions_system.items():
-            set_solution[str(var)] = sol
-        solutions_combined.append(set_solution)
+    for lambda_value in lvals:
+        A_np_list = [
+            solve_for_lambda(dataset, c, d, lambda_value, m)
+            for dataset in datasets[:-1]
+        ]
+        A_sum_np = sum(A_np_list)
+        P = A_sum_np
+        q = np.zeros(m)
+        a = np.random.uniform(-4, 4, m)
+        G = np.zeros((0, m))
+        h = np.zeros(0)
+        A = a.reshape(1, -1)
+        b = np.array([1.0])
+        y = solve_qp(P, q, G, h, A, b, solver="clarabel")
+        y_opt = y.flatten() if isinstance(y, np.ndarray) else np.array(y).flatten()
+        y_names = [f"y{i}" for i in range(m)]
+        y_dict = {name: value for name, value in zip(y_names, y_opt)}
+        solutions_combined.append((lambda_value, y_dict))
 
     def multilinear_coefficient(n, *ks):
         numerator = math.factorial(n)
