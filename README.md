@@ -35,7 +35,7 @@ This repository contains code for learning the conservation laws of dynamical sy
    
 We really recommend starting with our example Lorenz system to understand how to discover single and multiple conservation laws, as well as the sparsification procedure.
 
-   * For example, run ```Lorenz_System_T5_40.py``` in the terminal located in the scripts folder. In this script, the user can specify the polynomial kernel degree and the constant c. For simplicity, you can set, but any value for c can be used.
+   * For example, run ```Lorenz_System_T5_40.py``` in the terminal located in the scripts folder. In this script, the user can specify the polynomial kernel degree and the constant c. For simplicity, you can set c = 1, but any value for c can be used.
    *  The illustrative figures, conserved quantity, and other important results will be saved to the results folder.
 
    To explore more comprehensive examples, utilize the ```kcl.py``` script. This general-purpose code is designed to be executed 
